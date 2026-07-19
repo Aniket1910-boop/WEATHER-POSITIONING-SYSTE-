@@ -1,0 +1,660 @@
+/* ===========================
+   Weather Positioning System
+   Bootstrap Custom Styles
+=========================== */
+
+body{
+
+    transition: background 0.8s ease;
+
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+
+    background: linear-gradient(
+        135deg,
+        #5ee7df 0%,
+        #66a6ff 100%
+    );
+
+    min-height:100vh;
+
+    transition: background 0.8s ease;
+
+    font-family:Arial, Helvetica, sans-serif;
+
+}
+
+/* Navbar */
+
+.navbar{
+    box-shadow:0 4px 10px rgba(0,0,0,0.2);
+}
+
+.navbar-brand{
+    font-size:1.4rem;
+}
+
+.navbar a{
+    font-weight:500;
+}
+
+/* Main Container */
+
+.container{
+    margin-top:30px;
+    margin-bottom:30px;
+}
+
+/* Hero Section */
+
+.display-4{
+    color:#1565C0;
+    margin-bottom:10px;
+}
+
+.lead{
+    color:#555;
+    margin-bottom:40px;
+}
+
+/* Form */
+
+.form-control{
+    border-radius:10px;
+}
+
+.form-control:focus{
+    box-shadow:0 0 10px rgba(21,101,192,.25);
+    border-color:#1565C0;
+}
+
+.btn-primary{
+    border-radius:10px;
+    padding:12px 30px;
+    font-size:18px;
+}
+
+/* Cards */
+
+.card{
+    background:rgba(255,255,255,0.25);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+
+    border:1px solid rgba(255,255,255,0.3);
+
+    border-radius:22px;
+
+    transition:.4s;
+
+    box-shadow:0 10px 30px rgba(0,0,0,.15);
+}
+
+.card:hover{
+
+    transform:translateY(-10px) scale(1.02);
+
+    box-shadow:0 20px 40px rgba(0,0,0,.25);
+
+}
+
+.card-body{
+
+    padding:30px;
+
+}
+.card h4{
+    margin-bottom:15px;
+    font-weight:bold;
+}
+
+.card h2{
+    font-size:32px;
+    font-weight:bold;
+}
+
+/* Map */
+
+#map{
+    height:450px;
+    width:100%;
+    border-radius:18px;
+    margin-top:30px;
+    box-shadow:0 8px 20px rgba(0,0,0,.15);
+}
+
+/* Chart */
+
+canvas{
+    background:white;
+    border-radius:18px;
+    padding:20px;
+    margin-top:30px;
+    box-shadow:0 8px 20px rgba(0,0,0,.15);
+}
+
+/* Forecast Cards */
+
+.forecast-card{
+    background:white;
+    border-radius:15px;
+    padding:20px;
+    text-align:center;
+    box-shadow:0 5px 15px rgba(0,0,0,.12);
+}
+
+/* Footer */
+
+footer{
+    margin-top:60px;
+    text-align:center;
+    color:white;
+    padding:20px;
+    font-size:15px;
+}
+
+/* Responsive */
+
+@media (max-width:768px){
+
+    .display-4{
+        font-size:2rem;
+    }
+
+    .navbar-brand{
+        font-size:1.1rem;
+    }
+
+    .card{
+        margin-bottom:20px;
+    }
+
+    #map{
+        height:300px;
+    }
+
+}
+
+.card h1{
+    font-size:60px;
+    margin-bottom:15px;
+}
+
+body{
+
+    opacity:0;
+
+    transition:1s;
+
+}
+
+/* ===========================
+   PROFESSIONAL DASHBOARD
+=========================== */
+
+.card{
+
+    overflow:hidden;
+
+    position:relative;
+
+}
+
+.card::before{
+
+    content:"";
+
+    position:absolute;
+
+    top:0;
+
+    left:0;
+
+    width:100%;
+
+    height:6px;
+
+    background:linear-gradient(90deg,#2196F3,#00BCD4);
+
+}
+
+.card:hover{
+
+    transform:translateY(-8px);
+
+    transition:.4s;
+
+    box-shadow:0 15px 35px rgba(0,0,0,.18);
+
+}
+
+.card h1{
+
+    font-size:65px;
+
+}
+
+.card h2{
+
+    font-size:36px;
+
+    font-weight:bold;
+
+}
+
+.card p{
+
+    font-size:15px;
+
+}
+
+.btn{
+
+    transition:.3s;
+
+}
+
+.btn:hover{
+
+    transform:scale(1.05);
+
+}
+
+canvas{
+
+    transition:.4s;
+
+}
+
+canvas:hover{
+
+    transform:scale(1.01);
+
+}
+
+#map{
+
+    transition:.4s;
+
+}
+
+#map:hover{
+
+    transform:scale(1.01);
+
+}
+
+/* ==========================
+   LOADING SCREEN
+========================== */
+
+#loader{
+
+    position:fixed;
+
+    top:0;
+
+    left:0;
+
+    width:100%;
+
+    height:100%;
+
+    background:#0d6efd;
+
+    display:flex;
+
+    flex-direction:column;
+
+    justify-content:center;
+
+    align-items:center;
+
+    color:white;
+
+    z-index:99999;
+
+    transition:0.5s;
+
+}
+
+/* ==========================
+   DYNAMIC WEATHER BACKGROUND
+========================== */
+
+.sunny{
+
+    background: linear-gradient(135deg,#56CCF2,#2F80ED);
+
+}
+
+.cloudy{
+
+    background: linear-gradient(135deg,#BDC3C7,#2C3E50);
+
+}
+
+.rainy{
+
+    background: linear-gradient(135deg,#4B79A1,#283E51);
+
+}
+
+.snow{
+
+    background: linear-gradient(135deg,#E6DADA,#274046);
+
+}
+
+.thunder{
+
+    background: linear-gradient(135deg,#232526,#414345);
+
+}
+
+/* ======================================
+   PROFESSIONAL CARD ANIMATION
+====================================== */
+
+.card{
+
+    border-radius:20px;
+
+    transition:all 0.35s ease;
+
+    overflow:hidden;
+
+}
+
+.card:hover{
+
+    transform:translateY(-10px) scale(1.02);
+
+    box-shadow:0 18px 35px rgba(0,0,0,0.25);
+
+}
+
+/* ===========================
+   LOADING SPINNER
+=========================== */
+
+#loader{
+
+    display: none;
+
+    position: fixed;
+
+    top: 0;
+
+    left: 0;
+
+    width: 100%;
+
+    height: 100%;
+
+    background: rgba(255,255,255,0.9);
+
+    z-index: 9999;
+
+    justify-content: center;
+
+    align-items: center;
+
+    flex-direction: column;
+
+}
+
+/* ===========================
+   CARD HOVER EFFECT
+=========================== */
+
+.card{
+
+    transition:0.3s ease;
+
+}
+
+.card:hover{
+
+    transform:translateY(-10px);
+
+    box-shadow:0 15px 35px rgba(0,0,0,0.25);
+
+}
+
+/* ===========================
+   WEATHER HIGHLIGHTS
+=========================== */
+
+.highlight-card{
+
+    border:none;
+
+    border-radius:20px;
+
+    color:white;
+
+    transition:0.35s;
+
+    overflow:hidden;
+
+}
+
+.highlight-card:hover{
+
+    transform:translateY(-8px);
+
+    box-shadow:0 15px 35px rgba(0,0,0,0.25);
+
+}
+
+.highlight-card .card-body{
+
+    padding:30px;
+
+}
+
+.highlight-card i{
+
+    font-size:55px;
+
+    margin-bottom:15px;
+
+}
+
+/* Different Gradient Colors */
+
+.feels{
+
+    background:linear-gradient(135deg,#ff7e5f,#feb47b);
+
+}
+
+.wind{
+
+    background:linear-gradient(135deg,#43cea2,#185a9d);
+
+}
+
+.sunrise{
+
+    background:linear-gradient(135deg,#f6d365,#fda085);
+
+}
+
+.sunset{
+
+    background:linear-gradient(135deg,#4facfe,#00f2fe);
+
+}
+
+.rain{
+
+    background:linear-gradient(135deg,#667eea,#764ba2);
+
+}
+
+.air{
+
+    background:linear-gradient(135deg,#11998e,#38ef7d);
+
+}
+
+/* ==========================================================
+   WEATHER HIGHLIGHTS
+========================================================== */
+
+.highlight-card{
+    border: none;
+    border-radius:20px;
+    color:white;
+    transition:0.3s;
+    overflow:hidden;
+}
+
+.highlight-card:hover{
+    transform:translateY(-8px);
+    box-shadow:0 12px 25px rgba(0,0,0,.25);
+}
+
+.highlight-card .card-body{
+    padding:30px;
+}
+
+.highlight-card i{
+    font-size:55px;
+    margin-bottom:15px;
+}
+
+.highlight-card h3{
+    font-weight:bold;
+}
+
+.highlight-card h4,
+.highlight-card h5{
+    font-weight:600;
+}
+
+/* Different Colors */
+
+.highlight-card.feels{
+    background:linear-gradient(135deg,#ff9a44,#fc6076);
+}
+
+.highlight-card.wind{
+    background:linear-gradient(135deg,#36d1dc,#5b86e5);
+}
+
+.highlight-card.sunrise{
+    background:linear-gradient(135deg,#f7971e,#ffd200);
+}
+
+.highlight-card.sunset{
+    background:linear-gradient(135deg,#ff512f,#dd2476);
+}
+
+.highlight-card.rain{
+    background:linear-gradient(135deg,#4facfe,#00f2fe);
+}
+
+.highlight-card.air{
+    background:linear-gradient(135deg,#43cea2,#185a9d);
+}
+
+/* ==========================================================
+   DARK MODE
+========================================================== */
+
+.dark-mode{
+
+    background:#121212 !important;
+
+    color:white;
+
+}
+
+.dark-mode .navbar{
+
+    background:#000 !important;
+
+}
+
+.dark-mode .card{
+
+    background:#1f1f1f !important;
+
+    color:white;
+
+    border:1px solid #333;
+
+}
+
+.dark-mode .card h1,
+.dark-mode .card h2,
+.dark-mode .card h3,
+.dark-mode .card h4,
+.dark-mode .card h5,
+.dark-mode .card p{
+
+    color:white;
+
+}
+
+.dark-mode .text-primary{
+
+    color:#66b3ff !important;
+
+}
+
+.dark-mode .text-success{
+
+    color:#4caf50 !important;
+
+}
+
+.dark-mode .text-info{
+
+    color:#4fc3f7 !important;
+
+}
+
+.dark-mode .text-warning{
+
+    color:#ffca28 !important;
+
+}
+
+.dark-mode .text-muted{
+
+    color:#cccccc !important;
+
+}
+
+.dark-mode canvas{
+
+    background:#222 !important;
+
+}
+
+.dark-mode footer{
+
+    color:#ddd;
+
+}
+
+.dark-mode .btn-light{
+
+    background:#444;
+
+    color:white;
+
+    border:none;
+
+}
