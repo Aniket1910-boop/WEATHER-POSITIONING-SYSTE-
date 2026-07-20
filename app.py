@@ -1,3 +1,5 @@
+import traceback
+
 from flask import Flask, render_template, request, send_file
 import requests
 from datetime import datetime
@@ -56,14 +58,19 @@ def home():
         city = request.form.get("city", "").strip()
         latitude = request.form.get("latitude", "").strip()
         longitude = request.form.get("longitude", "").strip()
-
-        try:
+        
+        
+       
+    try:
+        
+        if not city and not latitude and not longitude:
+         return render_template("index.html")
 
             # ==================================================
             # CITY SEARCH
             # ==================================================
 
-            if city:
+        if city:
 
                 geo_url = (
                     "https://geocoding-api.open-meteo.com/v1/search"
@@ -87,7 +94,7 @@ def home():
             # WEATHER API
             # ==================================================
 
-            weather_url = (
+        weather_url = (
 
                 "https://api.open-meteo.com/v1/forecast?"
 
@@ -129,21 +136,27 @@ def home():
 
             )
 
-            weather_response = requests.get(
+        weather_response = requests.get(
                 weather_url,
                 timeout=15
             )
 
-            weather_data = weather_response.json()
-            
-            print(weather_data["daily"]["sunrise"][0])
-            print(weather_data["daily"]["sunset"][0])
+        print("Status Code:", weather_response.status_code)
+        print("Weather URL:")
+        print(weather_url)
+        print("Response Text:")
+        print(weather_response.text)
+
+        weather_data = weather_response.json()
+                    
+        print(weather_data["daily"]["sunrise"][0])
+        print(weather_data["daily"]["sunset"][0])
 
             # ==================================================
             # CURRENT WEATHER
             # ==================================================
 
-            weather = {
+        weather = {
 
                 "temperature":
                 weather_data["current"]["temperature_2m"],
@@ -162,46 +175,46 @@ def home():
 
             }
 
-            temperature = weather["temperature"]
-            weather_code = weather_data["current"]["weather_code"]
+        temperature = weather["temperature"]
+        weather_code = weather_data["current"]["weather_code"]
             
                         # ==================================================
             # WEATHER ICON & STATUS
             # ==================================================
 
-            if weather_code == 0:
+        if weather_code == 0:
                 weather["icon"] = "☀️"
                 weather["status"] = "Clear Sky"
 
-            elif weather_code in [1, 2]:
+        elif weather_code in [1, 2]:
                 weather["icon"] = "🌤"
                 weather["status"] = "Partly Cloudy"
 
-            elif weather_code == 3:
+        elif weather_code == 3:
                 weather["icon"] = "☁️"
                 weather["status"] = "Cloudy"
 
-            elif weather_code in [45, 48]:
+        elif weather_code in [45, 48]:
                 weather["icon"] = "🌫"
                 weather["status"] = "Fog"
 
-            elif weather_code in [51, 53, 55]:
+        elif weather_code in [51, 53, 55]:
                 weather["icon"] = "🌦"
                 weather["status"] = "Drizzle"
 
-            elif weather_code in [61, 63, 65]:
+        elif weather_code in [61, 63, 65]:
                 weather["icon"] = "🌧"
                 weather["status"] = "Rain"
 
-            elif weather_code in [71, 73, 75]:
+        elif weather_code in [71, 73, 75]:
                 weather["icon"] = "❄️"
                 weather["status"] = "Snow"
 
-            elif weather_code == 95:
+        elif weather_code == 95:
                 weather["icon"] = "⛈"
                 weather["status"] = "Thunderstorm"
 
-            else:
+        else:
                 weather["icon"] = "🌍"
                 weather["status"] = "Unknown"
 
@@ -209,7 +222,7 @@ def home():
             # SMART WEATHER RECOMMENDATION
             # ==================================================
 
-            if temperature > 35:
+        if temperature > 35:
 
                 recommendation = {
                     "title": "🔥 Very Hot",
@@ -219,7 +232,7 @@ def home():
                     )
                 }
 
-            elif temperature > 25:
+        elif temperature > 25:
 
                 recommendation = {
                     "title": "😊 Pleasant Weather",
@@ -229,7 +242,7 @@ def home():
                     )
                 }
 
-            elif temperature > 15:
+        elif temperature > 15:
 
                 recommendation = {
                     "title": "☁️ Cool Weather",
@@ -239,7 +252,7 @@ def home():
                     )
                 }
 
-            else:
+        else:
 
                 recommendation = {
                     "title": "🥶 Cold Weather",
@@ -253,14 +266,14 @@ def home():
             # 7-DAY FORECAST
             # ==================================================
 
-            dates = weather_data["daily"]["time"]
-            max_temp = weather_data["daily"]["temperature_2m_max"]
-            min_temp = weather_data["daily"]["temperature_2m_min"]
-            forecast_codes = weather_data["daily"]["weather_code"]
+        dates = weather_data["daily"]["time"]
+        max_temp = weather_data["daily"]["temperature_2m_max"]
+        min_temp = weather_data["daily"]["temperature_2m_min"]
+        forecast_codes = weather_data["daily"]["weather_code"]
 
-            forecast = []
+        forecast = []
 
-            for i in range(len(dates)):
+        for i in range(len(dates)):
 
                 code = forecast_codes[i]
 
@@ -309,12 +322,12 @@ def home():
             # SUNRISE & SUNSET
             # ==================================================
 
-            sunrise = datetime.strptime(
+        sunrise = datetime.strptime(
                 weather_data["daily"]["sunrise"][0],
                 "%Y-%m-%dT%H:%M"
             ).strftime("%I:%M %p")
 
-            sunset = datetime.strptime(
+        sunset = datetime.strptime(
                 weather_data["daily"]["sunset"][0],
                 "%Y-%m-%dT%H:%M"
             ).strftime("%I:%M %p")
@@ -323,7 +336,7 @@ def home():
             # RAIN CHANCE
             # ==================================================
 
-            rain_chance = weather_data["daily"][
+        rain_chance = weather_data["daily"][
                 "precipitation_probability_max"
             ][0]
             
@@ -331,7 +344,7 @@ def home():
             # AIR QUALITY API
             # ==================================================
 
-            air_url = (
+        air_url = (
 
                 "https://air-quality-api.open-meteo.com/v1/air-quality?"
 
@@ -343,14 +356,14 @@ def home():
 
             )
 
-            air_response = requests.get(
+        air_response = requests.get(
                 air_url,
                 timeout=15
             )
 
-            air_data = air_response.json()
+        air_data = air_response.json()
 
-            air = {
+        air = {
 
                 "pm10":
                 air_data["current"]["pm10"],
@@ -367,24 +380,24 @@ def home():
             # AQI STATUS
             # ==================================================
 
-            pm25 = air["pm25"]
+        pm25 = air["pm25"]
 
-            if pm25 <= 12:
+        if pm25 <= 12:
 
                 air["status"] = "🟢 Good"
                 air["color"] = "success"
 
-            elif pm25 <= 35:
+        elif pm25 <= 35:
 
                 air["status"] = "🟡 Moderate"
                 air["color"] = "warning"
 
-            elif pm25 <= 55:
+        elif pm25 <= 55:
 
                 air["status"] = "🟠 Poor"
                 air["color"] = "danger"
 
-            else:
+        else:
 
                 air["status"] = "🔴 Very Poor"
                 air["color"] = "danger"
@@ -393,7 +406,7 @@ def home():
             # ELEVATION API
             # ==================================================
 
-            elevation_url = (
+        elevation_url = (
 
                 "https://api.open-meteo.com/v1/elevation?"
 
@@ -403,27 +416,28 @@ def home():
 
             )
 
-            elevation_response = requests.get(
+        elevation_response = requests.get(
                 elevation_url,
                 timeout=15
             )
 
-            elevation_data = elevation_response.json()
+        elevation_data = elevation_response.json()
 
-            elevation = elevation_data["elevation"][0]
+        elevation = elevation_data["elevation"][0]
 
             # ==================================================
             # SAVE DATA FOR PDF
             # ==================================================
 
-            latest_weather = weather
-            latest_air = air
-            latest_elevation = elevation
-            latest_recommendation = recommendation
+        latest_weather = weather
+        latest_air = air
+        latest_elevation = elevation
+        latest_recommendation = recommendation
 
-        except Exception as e:
-
-            error = f"Error: {str(e)}"
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error = f"Error: {str(e)}"
 
     # ======================================================
     # RETURN HTML

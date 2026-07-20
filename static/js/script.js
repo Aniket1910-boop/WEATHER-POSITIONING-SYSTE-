@@ -131,8 +131,7 @@ setInterval(updateDateTime, 1000);
 // ============================
 // GET USER LOCATION
 // ============================
-
-function getLocation() {
+     function getLocation() {
 
     if (navigator.geolocation) {
 
@@ -165,6 +164,7 @@ function getLocation() {
     }
 
 }
+           
 
 // ==========================
 // LOADING SCREEN
