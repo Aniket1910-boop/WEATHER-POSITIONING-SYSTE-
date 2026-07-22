@@ -36,6 +36,10 @@ href="{{ url_for('static', filename='css/style.css') }}">
 
 <body>
 
+    <!-- Weather Animation -->
+
+<div id="weather-animation"></div>
+
     <!-- ================= LOADING SCREEN ================= -->
 
 <div id="loader">
@@ -158,26 +162,28 @@ Multi-Source Environmental Data Fusion Platform
 
 <div class="col-md-4 text-md-end">
 
-<h5>
+<h3 class="fw-bold text-primary">
 
-📍
+    <i class="bi bi-geo-alt-fill"></i>
 
-{% if city %}
+    {% if city %}
 
-{{ city }}
+        {{ city }}
 
-{% else %}
+    {% else %}
 
-Current Location
+        Current Location
 
-{% endif %}
+    {% endif %}
 
-</h5>
+</h3>
 
-<p id="currentDate"></p>
+<p id="currentDate" class="mb-2"></p>
 
-<p id="currentTime" class="fw-bold"></p>
+<div class="digital-clock">
+    <span id="liveClock">00:00:00</span>
 
+</div>
 </div>
 
 </div>
@@ -269,6 +275,8 @@ Current Location
     </div>
 
 </div>
+
+
 
 <!-- ================= ERROR MESSAGE ================= -->
 
@@ -673,55 +681,8 @@ Current Location
 
 </div>
 
-<!-- ================= LIVE WEATHER STATS ================= -->
 
-<h2 class="text-center text-primary fw-bold mt-5 mb-4">
-    📈 Live Weather Statistics
-</h2>
 
-<div class="row">
-
-    <div class="col-md-3 mb-4">
-        <div class="card shadow border-0 text-center">
-            <div class="card-body">
-                <i class="bi bi-thermometer-half display-4 text-danger"></i>
-                <h5>Feels Like</h5>
-                <h3>{{ weather.feels_like }} °C</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3 mb-4">
-        <div class="card shadow border-0 text-center">
-            <div class="card-body">
-                <i class="bi bi-compass display-4 text-primary"></i>
-                <h5>Wind Direction</h5>
-                <h3>{{ weather.wind_direction }}°</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3 mb-4">
-        <div class="card shadow border-0 text-center">
-            <div class="card-body">
-                <i class="bi bi-cloud-rain-heavy display-4 text-info"></i>
-                <h5>Rain Chance</h5>
-                <h3>{{ rain_chance }}%</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3 mb-4">
-        <div class="card shadow border-0 text-center">
-            <div class="card-body">
-                <i class="bi bi-geo-alt-fill display-4 text-success"></i>
-                <h5>Elevation</h5>
-                <h3>{{ elevation }} m</h3>
-            </div>
-        </div>
-    </div>
-
-</div>
 <!-- ================= ELEVATION ================= -->
 
 <h2 class="text-center text-info fw-bold mt-5 mb-4">
@@ -778,6 +739,220 @@ Current Location
             {{ recommendation.message }}
 
         </p>
+
+    </div>
+
+</div>
+
+<div class="card shadow-lg border-0 mb-5">
+
+    <div class="card-body text-center">
+
+        <h2 class="text-primary">
+            🚗 Smart Route Advisor
+        </h2>
+
+        <h3 class="mt-4">
+            {{ route_advice.status }}
+        </h3>
+
+        <p class="lead mt-3">
+            {{ route_advice.message }}
+        </p>
+
+    </div>
+
+</div>
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body">
+
+        <h2 class="text-center text-primary">
+
+            🚗 Live Traffic
+
+        </h2>
+
+        <h3 class="text-center">
+
+            {{ traffic.status }}
+
+        </h3>
+
+        <h5 class="mt-4">
+
+            Road Congestion
+
+        </h5>
+
+        <div class="progress" style="height:30px;">
+
+            <div
+                class="progress-bar bg-danger"
+                style="width: {{ traffic.congestion }}%;">
+
+                {{ traffic.congestion }}%
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div class="mt-4">
+
+    <h5>Road Risk Index</h5>
+
+    <div class="progress" style="height:28px;">
+
+        <div
+            class="progress-bar bg-danger"
+            role="progressbar"
+            style="width: {{ road_risk }}%;">
+
+            {{ road_risk }}%
+
+        </div>
+
+    </div>
+
+</div>
+
+            ⭐ Travel Safety Score
+        </h2>
+
+        <h1 class="display-3 fw-bold text-success">
+            {{ travel_score }}/100
+        </h1>
+
+        <p class="text-muted">
+            Calculated using Rain, Wind and Air Quality.
+        </p>
+
+    </div>
+
+</div>
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body text-center">
+
+        <h2 class="text-success">
+            🕒 Best Time To Travel
+        </h2>
+
+        <h3 class="fw-bold">
+            {{ best_time }}
+        </h3>
+
+    </div>
+
+</div>
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body text-center">
+
+        <h2 class="text-primary">
+            🌊 Flood Risk Prediction
+        </h2>
+
+        <h1>
+            {{ flood_risk.status }}
+        </h1>
+
+        <p class="lead">
+            {{ flood_risk.message }}
+        </p>
+
+    </div>
+
+</div>
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body">
+
+        <h2 class="text-danger text-center">
+            🚨 Weather Alerts
+        </h2>
+
+        <ul class="list-group mt-3">
+
+            {% for alert in alerts %}
+
+            <li class="list-group-item">
+
+                {{ alert }}
+
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </div>
+
+</div>
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body text-center">
+
+        <h2 class="text-primary">
+            ⭐ Today's Weather Score
+        </h2>
+
+        <h1 class="display-3 fw-bold">
+
+            {{ weather_score }}/100
+
+        </h1>
+
+        <p class="text-muted">
+
+            Overall environmental comfort score.
+
+        </p>
+
+    </div>
+
+</div>
+
+
+<!-- ================= TRAVEL SAFETY METER ================= -->
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body">
+
+        <h2 class="text-center text-success">
+
+            🚗 Travel Safety Meter
+
+        </h2>
+
+        <h3 class="text-center mt-3">
+
+            {{ travel_status }}
+
+        </h3>
+
+        <div class="progress mt-4" style="height:35px;">
+
+            <div
+                class="progress-bar bg-success"
+                role="progressbar"
+                style="width: {{ travel_score }}%;">
+
+                {{ travel_score }}%
+
+            </div>    
+
+        </div>
 
     </div>
 
@@ -853,6 +1028,8 @@ Minimum
 
 <!-- ================= DOWNLOAD PDF ================= -->
 
+{% if weather %}
+
 <div class="text-center mt-5 mb-5">
 
     <a href="/download"
@@ -866,7 +1043,11 @@ Minimum
 
 </div>
 
+{% endif %}
+
 <!-- ================= MAP ================= -->
+
+{% if weather %}
 
 <div class="card shadow-lg border-0 mb-5">
 
@@ -886,9 +1067,11 @@ Minimum
     </div>
 
 </div>
+{% endif %}
 
 <!-- ================= WEATHER CHART ================= -->
 
+{% if weather %}
 <div class="card shadow-lg border-0 mb-5">
 
     <div class="card-body">
@@ -904,6 +1087,7 @@ Minimum
     </div>
 
 </div>
+{% endif %}
 
 <!-- ================= FOOTER ================= -->
 
