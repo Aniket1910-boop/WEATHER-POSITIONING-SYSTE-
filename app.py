@@ -1,9 +1,11 @@
-import traceback
 from flask import Flask, render_template, request, send_file
 import requests
 from datetime import datetime
-from pdf_generator import create_pdf
+import traceback
+
+from config import GEOAPIFY_API_KEY
 from traffic import calculate_traffic
+from pdf_generator import create_pdf
 
 app = Flask(__name__)
 
@@ -564,7 +566,12 @@ def home():
 
         else:
 
-            travel_status = "🔴 Unsafe"            
+            travel_status = "🔴 Unsafe"  
+            
+            
+            route_coordinates = [
+    [float(latitude), float(longitude)]
+]          
         
 
         # ==================================================
@@ -629,6 +636,10 @@ def home():
         alerts=alerts,
         
         weather_score=weather_score,
+        
+        destination=destination,
+        
+        route_coordinates=route_coordinates,
 
         latitude=latitude,
         

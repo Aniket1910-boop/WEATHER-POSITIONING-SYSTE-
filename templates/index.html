@@ -36,6 +36,10 @@ href="{{ url_for('static', filename='css/style.css') }}">
 
 <body>
 
+    <h1 style="color:white;text-align:center;">
+WEATHER DASHBOARD
+</h1>
+
     <!-- Weather Animation -->
 
 <div id="weather-animation"></div>
@@ -221,6 +225,30 @@ Multi-Source Environmental Data Fusion Platform
                         placeholder="Example: Kolkata"
                         value="{{ city }}">
 
+                        <div class="col-lg-6">
+
+    <label class="form-label fw-bold">
+
+        <i class="bi bi-flag-fill"></i>
+
+        Destination
+
+    </label>
+
+    <input
+
+        type="text"
+
+        name="destination"
+
+        class="form-control form-control-lg"
+
+        placeholder="Example: Airport"
+
+        value="{{ destination }}">
+
+</div>
+
                 </div>
 
                 <!-- Search Button -->
@@ -228,15 +256,14 @@ Multi-Source Environmental Data Fusion Platform
                 <div class="col-lg-2 d-grid">
 
                     <button
-                        type="submit"
-                        class="btn btn-primary btn-lg">
+                    type="submit"
+                    class="btn btn-primary btn-lg">
 
-                        <i class="bi bi-search"></i>
+                    <i class="bi bi-sign-turn-right-fill"></i>
 
-                        Search
+                    Find Route
 
-                    </button>
-
+                </button>
                 </div>
 
                 <!-- My Location -->
@@ -802,6 +829,76 @@ Multi-Source Environmental Data Fusion Platform
 
 </div>
 
+{% if traffic %}
+
+<div class="card shadow-lg border-0 mt-4">
+
+    <div class="card-body">
+
+        <h2 class="text-center text-primary">
+
+            🚗 Route Information
+
+        </h2>
+
+        <div class="row text-center mt-4">
+
+            <div class="col-md-4">
+
+                <h4>
+
+                    Distance
+
+                </h4>
+
+                <h2>
+
+                    {{ traffic.distance }} km
+
+                </h2>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <h4>
+
+                    Duration
+
+                </h4>
+
+                <h2>
+
+                    {{ traffic.duration }} min
+
+                </h2>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <h4>
+
+                    Average Speed
+
+                </h4>
+
+                <h2>
+
+                    {{ traffic.speed }} km/h
+
+                </h2>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endif %}
+
 <div class="mt-4">
 
     <h5>Road Risk Index</h5>
@@ -1142,6 +1239,11 @@ const pm10 = Number("{{ air.pm10 if air else '0' }}");
 const pm25 = Number("{{ air.pm25 if air else '0' }}");
 const co = Number("{{ air.co if air else '0' }}");
 const elevationValue = Number("{{ elevation if elevation else '0' }}");
+const routeCoordinates = {{ route_coordinates|default([], true)|tojson }};
+const trafficCongestion = Number("{{ traffic.congestion if traffic else 0 }}");
+const destinationLat = {{ destination_lat|default("null", true) }};
+const destinationLon = {{ destination_lon|default("null", true) }};
+
 
 // Forecast Dates
 

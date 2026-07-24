@@ -7,23 +7,171 @@ const mapElement = document.getElementById("map");
 if (mapElement) {
 
     const map = L.map("map").setView(
-        [latitude, longitude],
-        10
-    );
+    [latitude, longitude],
+    12
+);
 
-    L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            attribution: "&copy; OpenStreetMap contributors"
-        }
-    ).addTo(map);
+// =====================
+// CAR ICON
+// =====================
 
-    L.marker([latitude, longitude])
-        .addTo(map)
-        .bindPopup(
-            `Latitude: ${latitude}<br>Longitude: ${longitude}`
-        )
-        .openPopup();
+const carIcon = L.icon({
+
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/744/744465.png",
+
+    iconSize: [40,40],
+
+    iconAnchor: [20,20]
+
+});
+
+L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        attribution:"© OpenStreetMap"
+    }
+).addTo(map);
+
+// Starting Point
+
+const startMarker = L.marker([latitude, longitude])
+
+.addTo(map)
+
+.bindPopup("<b>📍 Start Location</b>");
+
+startMarker.openPopup();
+
+// Destination
+
+if(routeCoordinates && routeCoordinates.length > 0){
+
+    const lastPoint = routeCoordinates[routeCoordinates.length - 1];
+
+    const destinationMarker = L.marker(
+
+    [destinationLat, destinationLon]
+
+)
+
+   .addTo(map)
+
+  .bindPopup("<b>🏁 Destination</b>");
+}
+
+// Draw Route
+
+if(typeof routeCoordinates !== "undefined"){
+
+    const latlngs = routeCoordinates.map(function(point){
+
+        return [point[1],point[0]];
+
+    });
+
+   let routeColor = "#34A853";   // Google Green
+
+if (trafficCongestion >= 70) {
+
+    routeColor = "#EA4335";   // Google Red
+
+}
+else if (trafficCongestion >= 40) {
+
+    routeColor = "#FBBC05";   // Google Yellow
+
+}
+else {
+
+    routeColor = "#34A853";   // Google Green
+
+}
+
+// =======================
+// TRAFFIC ROUTE COLOUR
+// =======================
+
+let routeColor = "green";
+
+if (trafficCongestion >= 70) {
+
+    routeColor = "red";
+
+}
+else if (trafficCongestion >= 40) {
+
+    routeColor = "orange";
+
+}
+else {
+
+    routeColor = "green";
+
+}
+
+const routeLine = L.polyline(
+
+    latlngs,
+
+    {
+
+        color: routeColor,
+
+        weight: 7,
+        opacity: 0.9
+
+    }
+
+);
+
+routeLine.addTo(map);
+
+map.fitBounds(routeLine.getBounds());
+
+// =====================
+// CAR MARKER
+// =====================
+
+const car = L.marker(
+
+    latlngs[0],
+
+    {
+
+        icon: carIcon
+
+    }
+
+).addTo(map);
+
+
+// =====================
+// ANIMATE CAR
+// =====================
+
+let index = 0;
+
+function moveCar(){
+
+    if(index >= latlngs.length){
+
+    clearInterval(animation);
+
+    return;
+
+}
+
+    car.setLatLng(latlngs[index]);
+
+    index++;
+
+}
+
+   const animation = setInterval(moveCar,250);
+
+    map.fitBounds(routeLine.getBounds());
+
+}
 }
 
 // ============================

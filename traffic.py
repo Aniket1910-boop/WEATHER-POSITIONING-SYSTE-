@@ -1,45 +1,69 @@
-def calculate_traffic(weather, air, rain_chance, elevation):
+import requests
+from config import GEOAPIFY_API_KEY
 
-    traffic = {}
 
-    score = 0
+def calculate_traffic(start_lat, start_lon,
+                      end_lat, end_lon):
 
-    # Rain
-    score += rain_chance * 0.5
+    url = (
+        "https://api.geoapify.com/v1/routing"
+        f"?waypoints={start_lat},{start_lon}|{end_lat},{end_lon}"
+        "&mode=drive"
+        "&apiKey=" + GEOAPIFY_API_KEY
+    )
 
-    # Wind
-    score += weather["wind"] * 0.3
+    response = requests.get(url)
 
-    # Air Quality
-    score += air["pm25"] * 0.2
+    data = response.json()
 
-    # Elevation
+    feature = data["features"][0]
 
-    if elevation < 20:
-        score += 20
+    distance = feature["properties"]["distance"]
 
-    elif elevation < 50:
-        score += 10
+    duration = feature["properties"]["time"]
 
-    if score > 100:
-        score = 100
+    coordinates = feature["geometry"]["coordinates"][0]
 
-    traffic["congestion"] = int(score)
+    # Convert seconds into km/h
 
-    if score < 25:
+    speed = (distance / 1000) / (duration / 3600)
 
-        traffic["status"] = "🟢 Smooth"
+    if speed > 40:
 
-    elif score < 50:
+        status = "🟢 Smooth"
 
-        traffic["status"] = "🟡 Moderate"
+        congestion = 20
 
-    elif score < 75:
+    elif speed > 25:
 
-        traffic["status"] = "🟠 Heavy"
+        status = "🟡 Moderate"
+
+        congestion = 45
+
+    elif speed > 15:
+
+        status = "🟠 Heavy"
+
+        congestion = 70
 
     else:
 
-        traffic["status"] = "🔴 Severe"
+        status = "🔴 Severe"
 
-    return traffic
+        congestion = 90
+
+    return {
+
+        "distance": round(distance / 1000, 2),
+
+        "duration": round(duration / 60, 1),
+
+        "speed": round(speed, 1),
+
+        "status": status,
+
+        "congestion": congestion,
+
+        "coordinates": coordinates
+
+    }
