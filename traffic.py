@@ -2,68 +2,117 @@ import requests
 from config import GEOAPIFY_API_KEY
 
 
-def calculate_traffic(start_lat, start_lon,
-                      end_lat, end_lon):
+def calculate_traffic(start_lat, start_lon, end_lat, end_lon):
 
     url = (
         "https://api.geoapify.com/v1/routing"
         f"?waypoints={start_lat},{start_lon}|{end_lat},{end_lon}"
         "&mode=drive"
-        "&apiKey=" + GEOAPIFY_API_KEY
+        "&details=route_details"
+        f"&apiKey={GEOAPIFY_API_KEY}"
     )
 
-    response = requests.get(url)
+    try:
 
-    data = response.json()
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
 
-    feature = data["features"][0]
+        data = response.json()
 
-    distance = feature["properties"]["distance"]
+        if "features" not in data or len(data["features"]) == 0:
+            raise Exception("Route not found")
 
-    duration = feature["properties"]["time"]
+        feature = data["features"][0]
 
-    coordinates = feature["geometry"]["coordinates"][0]
+        props = feature["properties"]
 
-    # Convert seconds into km/h
+        geometry = feature["geometry"]
 
-    speed = (distance / 1000) / (duration / 3600)
+        distance = props["distance"]          # metres
+        duration = props["time"]             # seconds
 
-    if speed > 40:
+        coordinates = geometry["coordinates"][0]
 
-        status = "🟢 Smooth"
+        speed = (distance / 1000) / (duration / 3600)
 
-        congestion = 20
+        if speed >= 45:
 
-    elif speed > 25:
+            status = "Low"
 
-        status = "🟡 Moderate"
+            color = "green"
 
-        congestion = 45
+            congestion = 15
 
-    elif speed > 15:
+            message = "Traffic is smooth."
 
-        status = "🟠 Heavy"
+        elif speed >= 30:
 
-        congestion = 70
+            status = "Moderate"
 
-    else:
+            color = "yellow"
 
-        status = "🔴 Severe"
+            congestion = 40
 
-        congestion = 90
+            message = "Moderate traffic."
 
-    return {
+        elif speed >= 15:
 
-        "distance": round(distance / 1000, 2),
+            status = "Heavy"
 
-        "duration": round(duration / 60, 1),
+            color = "orange"
 
-        "speed": round(speed, 1),
+            congestion = 70
 
-        "status": status,
+            message = "Heavy traffic. Drive carefully."
 
-        "congestion": congestion,
+        else:
 
-        "coordinates": coordinates
+            status = "Severe"
 
-    }
+            color = "red"
+
+            congestion = 95
+
+            message = "Severe congestion. Avoid this route."
+
+        return {
+
+            "distance": round(distance / 1000, 2),
+
+            "duration": round(duration / 60, 1),
+
+            "speed": round(speed, 1),
+
+            "status": status,
+
+            "color": color,
+
+            "message": message,
+
+            "congestion": congestion,
+
+            "coordinates": coordinates
+
+        }
+
+    except Exception as e:
+
+        return {
+
+            "distance": 0,
+
+            "duration": 0,
+
+            "speed": 0,
+
+            "status": "Unavailable",
+
+            "color": "gray",
+
+            "message": str(e),
+
+            "congestion": 0,
+
+            "coordinates": []
+
+        }

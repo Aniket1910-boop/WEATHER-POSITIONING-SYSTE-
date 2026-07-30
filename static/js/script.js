@@ -1,21 +1,47 @@
-// =====================
-// LEAFLET MAP
-// =====================
+// ======================================================
+// WEATHER POSITIONING SYSTEM
+// ======================================================
 
-const mapElement = document.getElementById("map");
+// ======================================================
+// CREATE MAP
+// ======================================================
 
-if (mapElement) {
+var map = L.map("map").setView([20.5937, 78.9629], 5);
 
-    const map = L.map("map").setView(
-    [latitude, longitude],
-    12
+// ======================================================
+// OPENSTREETMAP
+// ======================================================
+
+L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
+    }
+).addTo(map);
+
+
+// ==========================================
+// LIVE RAIN RADAR
+// ==========================================
+
+var rainLayer = L.tileLayer(
+
+    "https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=0aa6d898e1473fc83a1a25ea622775e6",
+
+    {
+
+        opacity:0.55
+
+    }
+
 );
 
-// =====================
+// ======================================================
 // CAR ICON
-// =====================
+// ======================================================
 
-const carIcon = L.icon({
+var carIcon = L.icon({
 
     iconUrl: "https://cdn-icons-png.flaticon.com/512/744/744465.png",
 
@@ -25,630 +51,377 @@ const carIcon = L.icon({
 
 });
 
-L.tileLayer(
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-        attribution:"© OpenStreetMap"
-    }
-).addTo(map);
+// ======================================================
+// DRAW ROUTE
+// ======================================================
 
-// Starting Point
+if (
+    typeof routeCoordinates !== "undefined" &&
+    routeCoordinates.length > 0
+) {
 
-const startMarker = L.marker([latitude, longitude])
+    let points = [];
 
-.addTo(map)
+    routeCoordinates.forEach(function(coord){
 
-.bindPopup("<b>📍 Start Location</b>");
-
-startMarker.openPopup();
-
-// Destination
-
-if(routeCoordinates && routeCoordinates.length > 0){
-
-    const lastPoint = routeCoordinates[routeCoordinates.length - 1];
-
-    const destinationMarker = L.marker(
-
-    [destinationLat, destinationLon]
-
-)
-
-   .addTo(map)
-
-  .bindPopup("<b>🏁 Destination</b>");
-}
-
-// Draw Route
-
-if(typeof routeCoordinates !== "undefined"){
-
-    const latlngs = routeCoordinates.map(function(point){
-
-        return [point[1],point[0]];
+        points.push([coord[1], coord[0]]);
 
     });
 
-   let routeColor = "#34A853";   // Google Green
+    // Source Marker
 
-if (trafficCongestion >= 70) {
+    // ======================================================
+// MOVING CAR
+// ======================================================
 
-    routeColor = "#EA4335";   // Google Red
+        var car = L.marker(points[0], {
 
-}
-else if (trafficCongestion >= 40) {
+            icon: carIcon
 
-    routeColor = "#FBBC05";   // Google Yellow
+        }).addTo(map)
 
-}
-else {
+        .bindPopup("Travelling...");
 
-    routeColor = "#34A853";   // Google Green
+    // Destination Marker
 
-}
+    L.marker(points[points.length - 1])
+        .addTo(map)
+        .bindPopup("Destination");
 
-// =======================
-// TRAFFIC ROUTE COLOUR
-// =======================
+    // Route Line
 
-let routeColor = "green";
+    let routeColor = "#28a745";
 
-if (trafficCongestion >= 70) {
+        if(routeStatus=="danger"){
 
-    routeColor = "red";
+            routeColor="#dc3545";
 
-}
-else if (trafficCongestion >= 40) {
+        }
 
-    routeColor = "orange";
+        else if(routeStatus=="warning"){
 
-}
-else {
+            routeColor="#ffc107";
 
-    routeColor = "green";
+        }
 
-}
+        else if(routeStatus=="info"){
 
-const routeLine = L.polyline(
+            routeColor="#17a2b8";
 
-    latlngs,
+        }
 
-    {
+        L.polyline(points,{
 
-        color: routeColor,
+            color:routeColor,
 
-        weight: 7,
-        opacity: 0.9
+        weight:8,
+        lineCap:"round",
+        lineJoin:"round",
 
-    }
+            opacity:0.9
 
-);
+        }).addTo(map);
 
-routeLine.addTo(map);
+    map.fitBounds(points);
 
-map.fitBounds(routeLine.getBounds());
+    setTimeout(function(){
 
-// =====================
-// CAR MARKER
-// =====================
+    map.panTo(points[points.length-1]);
 
-const car = L.marker(
-
-    latlngs[0],
-
-    {
-
-        icon: carIcon
-
-    }
-
-).addTo(map);
+},1200);
 
 
-// =====================
-// ANIMATE CAR
-// =====================
+    // ======================================================
+// CAR ANIMATION
+// ======================================================
 
 let index = 0;
 
 function moveCar(){
 
-    if(index >= latlngs.length){
+    if(index >= points.length){
 
-    clearInterval(animation);
+        return;   // Stop when destination is reached
 
-    return;
+    }
 
-}
-
-    car.setLatLng(latlngs[index]);
+    car.setLatLng(points[index]);
 
     index++;
 
-}
-
-   const animation = setInterval(moveCar,250);
-
-    map.fitBounds(routeLine.getBounds());
+    setTimeout(moveCar, 50);
 
 }
+
+moveCar();
+
+}
+else{
+
+    map.setView([22.5726,88.3639],10);
+
 }
 
-// ============================
-// 7-DAY FORECAST CHART
-// ============================
+// ======================================================
+// CURRENT LOCATION (Optional)
+// ======================================================
 
-const chartCanvas = document.getElementById("weatherChart");
+function locateUser(){
 
-if (chartCanvas) {
+    if(!navigator.geolocation){
 
-    new Chart(chartCanvas, {
+        alert("Geolocation not supported.");
 
-        type: "line",
+        return;
 
-        data: {
+    }
 
-            labels: forecastDates,
+    navigator.geolocation.getCurrentPosition(
 
-            datasets: [
+        function(position){
 
-                {
-                    label: "Maximum Temperature (°C)",
-                    data: forecastMax,
-                    borderWidth: 3,
-                    tension: 0.4,
-                    fill: false
-                },
+            let lat = position.coords.latitude;
 
-                {
-                    label: "Minimum Temperature (°C)",
-                    data: forecastMin,
-                    borderWidth: 3,
-                    tension: 0.4,
-                    fill: false
-                }
+            let lon = position.coords.longitude;
 
-            ]
+            map.setView([lat,lon],13);
+
+            L.marker([lat,lon])
+
+                .addTo(map)
+
+                .bindPopup("Your Current Location")
+
+                .openPopup();
 
         },
 
-        options: {
+        function(){
 
-            responsive: true,
-
-            plugins: {
-
-                legend: {
-
-                    display: true
-
-                }
-
-            }
+            console.log("Location permission denied.");
 
         }
 
-    });
+    );
 
 }
 
-// ============================
+// ======================================================
 // PAGE ANIMATION
-// ============================
+// ======================================================
 
-window.onload = function () {
+window.onload = function(){
 
     document.body.style.opacity = "1";
 
 };
 
-// ============================
-// LIVE DATE & TIME
-// ============================
+// ======================================================
+// BUTTON HOVER EFFECT
+// ======================================================
 
-function updateDateTime() {
+let buttons = document.querySelectorAll("button");
 
-    const now = new Date();
+buttons.forEach(function(btn){
 
-    const options = {
+    btn.addEventListener("mouseenter",function(){
 
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-
-    };
-
-    const dateElement = document.getElementById("currentDate");
-    const timeElement = document.getElementById("currentTime");
-
-    if (dateElement) {
-        dateElement.innerHTML = now.toLocaleDateString("en-IN", options);
-    }
-
-    if (timeElement) {
-        timeElement.innerHTML = now.toLocaleTimeString("en-IN");
-    }
-
-}
-
-updateDateTime();
-
-setInterval(updateDateTime, 1000);
-
-// ============================
-// GET USER LOCATION
-// ============================
-     function getLocation() {
-
-    if (navigator.geolocation) {
-
-        navigator.geolocation.getCurrentPosition(
-
-            function(position) {
-
-                document.getElementById("latitude").value =
-                    position.coords.latitude;
-
-                document.getElementById("longitude").value =
-                    position.coords.longitude;
-
-                document.querySelector("form").submit();
-
-            },
-
-            function() {
-
-                alert("Unable to get your location.");
-
-            }
-
-        );
-
-    } else {
-
-        alert("Geolocation is not supported by this browser.");
-
-    }
-
-}
-           
-
-// ==========================
-// LOADING SCREEN
-// ==========================
-
-window.addEventListener("load", function () {
-
-    document.getElementById("loader").style.display = "none";
-
-});
-
-// ==========================
-// SHOW LOADER ON FORM SUBMIT
-// ==========================
-
-const form = document.querySelector("form");
-
-if (form) {
-
-    form.addEventListener("submit", function () {
-
-        document.getElementById("loader").style.display = "flex";
+        btn.style.transform="scale(1.02)";
 
     });
 
-}
+    btn.addEventListener("mouseleave",function(){
 
-// ==========================
-// DYNAMIC WEATHER BACKGROUND
-// ==========================
+        btn.style.transform="scale(1)";
 
-if (typeof temperature !== "undefined") {
+    });
 
-    const status = "{{ weather.status if weather else '' }}";
+});
 
-}
+// ======================================================
+// CARD HOVER
+// ======================================================
 
-// ==========================
-// DYNAMIC WEATHER BACKGROUND
-// ==========================
+let cards=document.querySelectorAll(".card");
 
-if (typeof weatherStatus !== "undefined") {
+cards.forEach(function(card){
 
-    if (weatherStatus === "Clear Sky") {
+    card.addEventListener("mouseenter",function(){
 
-        document.body.classList.add("sunny");
+        card.style.transition=".3s";
 
-    }
+    });
 
-    else if (weatherStatus === "Cloudy") {
+});
 
-        document.body.classList.add("cloudy");
 
-    }
+// ==========================================
+// TOGGLE RAIN RADAR
+// ==========================================
 
-    else if (weatherStatus === "Rain") {
+function toggleRain(){
 
-        document.body.classList.add("rainy");
+    if(map.hasLayer(rainLayer)){
 
-    }
-
-    else if (weatherStatus === "Snow") {
-
-        document.body.classList.add("snow");
-
-    }
-
-    else if (weatherStatus === "Thunderstorm") {
-
-        document.body.classList.add("thunder");
-
-    }
-
-}
-
-// ============================
-// DYNAMIC WEATHER BACKGROUND
-// ============================
-
-if (weatherStatus !== "") {
-
-    if (weatherStatus === "Clear Sky") {
-
-        document.body.style.background =
-        "linear-gradient(135deg,#87CEEB,#E0F7FA)";
-
-    }
-
-    else if (weatherStatus === "Partly Cloudy") {
-
-        document.body.style.background =
-        "linear-gradient(135deg,#74b9ff,#dfe6e9)";
-
-    }
-
-    else if (weatherStatus === "Cloudy") {
-
-        document.body.style.background =
-        "linear-gradient(135deg,#bdc3c7,#95a5a6)";
-
-    }
-
-    else if (weatherStatus === "Rain") {
-
-        document.body.style.background =
-        "linear-gradient(135deg,#2c3e50,#4ca1af)";
-
-    }
-
-    else if (weatherStatus === "Snow") {
-
-        document.body.style.background =
-        "linear-gradient(135deg,#ffffff,#dfe9f3)";
-
-    }
-
-    else if (weatherStatus === "Thunderstorm") {
-
-        document.body.style.background =
-        "linear-gradient(135deg,#232526,#414345)";
-
-    }
-
-}
-
-// ================= LIVE DATE & TIME =================
-
-function updateClock() {
-
-    const now = new Date();
-
-    const options = {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-    };
-
-    document.getElementById("currentDate").innerHTML =
-        now.toLocaleDateString("en-US", options);
-
-    document.getElementById("currentTime").innerHTML =
-        now.toLocaleTimeString();
-
-}
-
-updateClock();
-
-setInterval(updateClock, 1000);
-
-// ================= HUMIDITY GAUGE =================
-
-if(document.getElementById("humidityGauge")){
-
-    var opts = {
-
-        angle:0,
-
-        lineWidth:0.25,
-
-        radiusScale:1,
-
-        pointer:{
-            length:0.6,
-            strokeWidth:0.04,
-            color:"#000000"
-        },
-
-        limitMax:false,
-        limitMin:false,
-
-        colorStart:"#00BCD4",
-        colorStop:"#2196F3",
-
-        strokeColor:"#EEEEEE",
-
-        generateGradient:true
-
-    };
-
-    var target=document.getElementById("humidityGauge");
-
-    var gauge=new Gauge(target).setOptions(opts);
-
-    gauge.maxValue=100;
-
-    gauge.setMinValue(0);
-
-    gauge.animationSpeed=40;
-
-    gauge.set(humidity);
-}
-
-// ==========================================================
-// DARK MODE
-// ==========================================================
-
-function toggleDarkMode(){
-
-    document.body.classList.toggle("dark-mode");
-
-    const button = document.querySelector(".navbar .btn-light");
-
-    if(document.body.classList.contains("dark-mode")){
-
-        localStorage.setItem("theme","dark");
-
-        button.innerHTML="☀️ Light Mode";
+        map.removeLayer(rainLayer);
 
     }
 
     else{
 
-        localStorage.setItem("theme","light");
-
-        button.innerHTML="🌙 Dark Mode";
+        rainLayer.addTo(map);
 
     }
 
 }
 
-// ==========================================================
-// LOAD SAVED THEME
-// ==========================================================
+function getLocation() {
 
-window.addEventListener("load",function(){
+    if (!navigator.geolocation) {
 
-    const theme=localStorage.getItem("theme");
+        alert("Geolocation is not supported.");
 
-    const button=document.querySelector(".navbar .btn-light");
-
-    if(theme==="dark"){
-
-        document.body.classList.add("dark-mode");
-
-        if(button){
-
-            button.innerHTML="☀️ Light Mode";
-
-        }
+        return;
 
     }
 
-});
+    navigator.geolocation.getCurrentPosition(
 
-// ==========================================================
-// ANIMATED COUNTERS
-// ==========================================================
+        function(position) {
 
-function animateCounter(id, endValue, decimals = 0) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
 
-    const element = document.getElementById(id);
+            fetch(`/current-location?lat=${lat}&lon=${lon}`)
+                .then(response => response.json())
+                .then(data => {
 
-    if (!element) return;
+                    if(data.city){
 
-    let start = 0;
+                        document.querySelector(
+                        "input[name='source']").value = data.city;
 
-    const duration = 1500;
-    const stepTime = 20;
-    const increment = endValue / (duration / stepTime);
+                    }
 
-    const timer = setInterval(function () {
+                });
 
-        start += increment;
+        },
 
-        if (start >= endValue) {
+        function(){
 
-            element.innerHTML = Number(endValue).toFixed(decimals);
-            clearInterval(timer);
-
-        } else {
-
-            element.innerHTML = Number(start).toFixed(decimals);
+            alert("Location permission denied.");
 
         }
 
-    }, stepTime);
+    );
+
+}
+
+// ======================================================
+// GET USER CURRENT LOCATION
+// ======================================================
+
+function getLocation() {
+
+    if (!navigator.geolocation) {
+
+        alert("Geolocation is not supported.");
+
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+
+        function(position) {
+
+            let lat = position.coords.latitude;
+            let lon = position.coords.longitude;
+
+            fetch(`/current-location?lat=${lat}&lon=${lon}`)
+
+            .then(response => response.json())
+
+            .then(data => {
+
+               document.querySelector("input[name='source']").value = data.city;
+
+               document.querySelector("form").submit();
+
+            })
+
+            .catch(error => {
+
+                console.log(error);
+
+                alert("Unable to fetch location.");
+
+            });
+
+        },
+
+        function(error) {
+
+            alert("Location permission denied.");
+
+        }
+
+    );
 
 }
 
 
-// ==========================================================
-// START ALL COUNTERS
-// ==========================================================
+// =====================================
+// TEMPERATURE CHART
+// =====================================
 
-window.addEventListener("load", function () {
+const chartCanvas = document.getElementById("temperatureChart");
 
-    animateCounter("tempCounter", temperature, 1);
+if(chartCanvas){
 
-    animateCounter("humidityCounter", humidity);
+    new Chart(chartCanvas,{
 
-    animateCounter("windCounter", wind, 1);
+        type:"line",
 
-    animateCounter("pm10Counter", pm10, 1);
+        data:{
 
-    animateCounter("pm25Counter", pm25, 1);
+            labels:forecastDays,
 
-    animateCounter("coCounter", co, 1);
+            datasets:[{
 
-    animateCounter("elevationCounter", elevationValue);
+                label:"Maximum Temperature (°C)",
 
-});
+                data:forecastTemp,
 
-// ================= LIVE CLOCK =================
+                borderColor:"#ff5722",
 
-function updateClock() {
+                backgroundColor:"rgba(255,87,34,0.2)",
 
-    let now = new Date();
+                borderWidth:3,
 
-    document.getElementById("liveClock").innerHTML =
-        now.toLocaleTimeString();
+                tension:0.4,
+
+                fill:true
+
+            }]
+
+        },
+
+        options:{
+
+            responsive:true,
+
+            plugins:{
+
+                legend:{
+
+                    display:true
+
+                }
+
+            }
+
+        }
+
+    });
 
 }
-
-setInterval(updateClock, 1000);
-
-updateClock();
-
-// ================= LIVE DIGITAL CLOCK =================
-
-function updateClock() {
-
-    let now = new Date();
-
-    let hours = String(now.getHours()).padStart(2, '0');
-
-    let minutes = String(now.getMinutes()).padStart(2, '0');
-
-    let seconds = String(now.getSeconds()).padStart(2, '0');
-
-    document.getElementById("liveClock").innerHTML =
-        `${hours}:${minutes}:${seconds}`;
-
-}
-
-updateClock();
-
-setInterval(updateClock,1000);
-

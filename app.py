@@ -1,28 +1,789 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, jsonify, send_file
 import requests
-from datetime import datetime
 import traceback
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from config import GEOAPIFY_API_KEY
 from traffic import calculate_traffic
 from pdf_generator import create_pdf
 
 app = Flask(__name__)
 
 # ==========================================================
-# Store latest searched data for PDF Generation
+# CONFIGURATION
 # ==========================================================
 
-latest_weather = None
-latest_air = None
-latest_elevation = None
-latest_recommendation = None
-latest_sunrise = None
-latest_sunset = None
+HEADERS = {
+    "User-Agent": "Weather Positioning System v2.0"
+}
+
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+
+AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+
+ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+
+# Replace with your Geoapify API Key
+GEOAPIFY_KEY = "36cc2184ba5846598fd7a41cf8b207f4"
+
+# ==========================================================
+# GLOBAL VARIABLES
+# ==========================================================
+
+latest_weather = {}
+latest_air = {}
+latest_forecast = []
+latest_route = {}
+latest_waterlogging = {}
+latest_travel = {}
+latest_recommendation = {}
+latest_city = ""
+latest_destination = ""
+latest_elevation = 0
+latest_sunrise = ""
+latest_sunset = ""
+latest_local_time = ""
+
+# ==========================================================
+# GEOCODING
+# ==========================================================
+
+def geocode_location(place):
+
+    url = "https://api.geoapify.com/v1/geocode/search"
+
+    params = {
+        "text": place,
+        "apiKey": GEOAPIFY_KEY,
+        "limit": 1
+    }
+
+    try:
+
+        response = requests.get(url, params=params, timeout=10)
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        if len(data["features"]) == 0:
+            return None
+
+        feature = data["features"][0]
+
+        return {
+
+            "name": feature["properties"]["formatted"],
+
+            "lat": feature["properties"]["lat"],
+
+            "lon": feature["properties"]["lon"]
+
+        }
+
+    except Exception:
+
+        return None
+
+# ==========================================================
+# WEATHER SCORE
+# ==========================================================
+
+def calculate_weather_score(weather, rain):
+
+    score = 100
+
+    if weather["temperature"] > 35:
+        score -= 15
+
+    if weather["wind"] > 25:
+        score -= 10
+
+    score -= int(rain * 0.4)
+
+    return max(score, 0)
+
+# ==========================================================
+# WATERLOGGING
+# ==========================================================
+
+def predict_waterlogging(rain, humidity, elevation):
+
+    risk = 0
+
+    risk += rain * 0.5
+
+    risk += humidity * 0.2
+
+    if elevation < 10:
+        risk += 30
+
+    elif elevation < 30:
+        risk += 15
+
+    if risk < 40:
+
+        return {
+            "status": "Low",
+            "color": "green",
+            "message": "No major waterlogging expected."
+        }
+
+    elif risk < 70:
+
+        return {
+            "status": "Moderate",
+            "color": "orange",
+            "message": "Possible waterlogging in low-lying roads."
+        }
+
+    else:
+
+        return {
+            "status": "High",
+            "color": "red",
+            "message": "Avoid low-lying areas."
+        }
+
+# ==========================================================
+# TRAVEL INTELLIGENCE
+# ==========================================================
+
+def travel_advice(weather_score, traffic_status, waterlogging):
+
+    advice = []
+
+    if weather_score > 80:
+        advice.append("Weather is suitable for travelling.")
+
+    else:
+        advice.append("Weather conditions are not ideal.")
+
+    if traffic_status == "Heavy":
+        advice.append("Heavy traffic detected.")
+
+    elif traffic_status == "Moderate":
+        advice.append("Moderate traffic expected.")
+
+    else:
+        advice.append("Traffic conditions are good.")
+
+    if waterlogging["status"] == "High":
+        advice.append("Avoid flood-prone roads.")
+
+    elif waterlogging["status"] == "Moderate":
+        advice.append("Drive carefully in low-lying areas.")
+
+    else:
+        advice.append("Road conditions appear normal.")
+
+    return advice
 
 
 # ==========================================================
-# HOME PAGE
+# WEATHER
+# ==========================================================
+
+def get_weather(lat, lon):
+
+    url = (
+        f"{OPEN_METEO_URL}"
+        f"?latitude={lat}"
+        f"&longitude={lon}"
+        "&current="
+        "temperature_2m,"
+        "apparent_temperature,"
+        "relative_humidity_2m,"
+        "wind_speed_10m,"
+        "wind_direction_10m,"
+        "weather_code"
+        "&daily="
+        "temperature_2m_max,"
+        "temperature_2m_min,"
+        "weather_code,"
+        "sunrise,"
+        "sunset,"
+        "precipitation_probability_max"
+        "&forecast_days=7"
+        "&timezone=auto"
+    )
+
+    return requests.get(url, timeout=20).json()
+
+
+# ==========================================================
+# AIR QUALITY
+# ==========================================================
+
+def get_air_quality(lat, lon):
+
+    url = (
+        f"{AIR_URL}"
+        f"?latitude={lat}"
+        f"&longitude={lon}"
+        "&current="
+        "pm10,"
+        "pm2_5,"
+        "carbon_monoxide"
+    )
+
+    return requests.get(url, timeout=20).json()
+
+
+# ==========================================================
+# ELEVATION
+# ==========================================================
+
+def get_elevation(lat, lon):
+
+    url = (
+        f"{ELEVATION_URL}"
+        f"?latitude={lat}"
+        f"&longitude={lon}"
+    )
+
+    return requests.get(url, timeout=20).json()
+
+
+# ==========================================================
+# WEATHER ICON
+# ==========================================================
+
+def weather_icon(code):
+
+    weather_codes = {
+
+        0: ("☀️", "Clear Sky"),
+
+        1: ("🌤️", "Mainly Clear"),
+        2: ("⛅", "Partly Cloudy"),
+        3: ("☁️", "Overcast"),
+
+        45: ("🌫️", "Fog"),
+        48: ("🌫️", "Depositing Fog"),
+
+        51: ("🌦️", "Light Drizzle"),
+        53: ("🌦️", "Moderate Drizzle"),
+        55: ("🌧️", "Heavy Drizzle"),
+
+        56: ("🌧️", "Freezing Drizzle"),
+        57: ("🌧️", "Heavy Freezing Drizzle"),
+
+        61: ("🌧️", "Slight Rain"),
+        63: ("🌧️", "Moderate Rain"),
+        65: ("🌧️", "Heavy Rain"),
+
+        66: ("🌧️", "Freezing Rain"),
+        67: ("🌧️", "Heavy Freezing Rain"),
+
+        71: ("❄️", "Slight Snow"),
+        73: ("❄️", "Moderate Snow"),
+        75: ("❄️", "Heavy Snow"),
+
+        77: ("🌨️", "Snow Grains"),
+
+        80: ("🌦️", "Rain Showers"),
+        81: ("🌦️", "Moderate Rain Showers"),
+        82: ("⛈️", "Violent Rain Showers"),
+
+        85: ("🌨️", "Snow Showers"),
+        86: ("🌨️", "Heavy Snow Showers"),
+
+        95: ("⛈️", "Thunderstorm"),
+        96: ("⛈️", "Thunderstorm with Hail"),
+        99: ("⛈️", "Severe Thunderstorm")
+
+    }
+
+    return weather_codes.get(
+        code,
+        ("🌍", f"Weather Code {code}")
+    )
+
+
+# ==========================================================
+# AQI STATUS
+# ==========================================================
+
+def aqi_status(pm25):
+
+    if pm25 <= 12:
+
+        return {
+            "status": "Good",
+            "color": "green"
+        }
+
+    elif pm25 <= 35:
+
+        return {
+            "status": "Moderate",
+            "color": "yellow"
+        }
+
+    elif pm25 <= 55:
+
+        return {
+            "status": "Poor",
+            "color": "orange"
+        }
+
+    return {
+        "status": "Very Poor",
+        "color": "red"
+    }
+
+
+# ==========================================================
+# FORECAST
+# ==========================================================
+
+def build_forecast(weather_json):
+
+    forecast = []
+
+    dates = weather_json["daily"]["time"]
+
+    max_temp = weather_json["daily"]["temperature_2m_max"]
+
+    min_temp = weather_json["daily"]["temperature_2m_min"]
+
+    codes = weather_json["daily"]["weather_code"]
+
+    for i in range(len(dates)):
+
+        icon, status = weather_icon(codes[i])
+
+        forecast.append({
+
+            "day": datetime.strptime(
+                dates[i],
+                "%Y-%m-%d"
+            ).strftime("%A"),
+
+            "max": max_temp[i],
+
+            "min": min_temp[i],
+
+            "icon": icon,
+
+            "status": status
+
+        })
+
+    return forecast
+
+# ==========================================================
+# ROUTE ENGINE
+# ==========================================================
+
+def get_alternative_routes(
+
+    source_lat,
+
+    source_lon,
+
+    dest_lat,
+
+    dest_lon
+
+):
+
+    url = (
+
+        "https://api.geoapify.com/v1/routing"
+
+        f"?waypoints={source_lat},{source_lon}|{dest_lat},{dest_lon}"
+
+        "&mode=drive"
+
+        "&details=route_details"
+
+        "&alternatives=3"
+
+        f"&apiKey={GEOAPIFY_KEY}"
+
+    )
+
+    try:
+
+        response = requests.get(url, timeout=20)
+
+        data = response.json()
+
+        if "features" not in data:
+
+            return []
+
+        routes=[]
+
+        for feature in data["features"]:
+
+            props=feature["properties"]
+
+            routes.append({
+
+                "distance":round(props["distance"]/1000,2),
+
+                "duration":round(props["time"]/60,1),
+
+                "coordinates":feature["geometry"]["coordinates"][0]
+
+            })
+
+        return routes
+
+    except:
+
+        return []
+
+
+# ==========================================================
+# TRAFFIC STATUS
+# ==========================================================
+
+def traffic_status(duration):
+
+    if duration < 20:
+
+        return {
+
+            "status": "Low",
+
+            "color": "green"
+
+        }
+
+    elif duration < 45:
+
+        return {
+
+            "status": "Moderate",
+
+            "color": "yellow"
+
+        }
+
+    return {
+
+        "status": "Heavy",
+
+        "color": "red"
+
+    }
+
+
+# ==========================================================
+# BEST ROUTE ADVICE
+# ==========================================================
+
+def best_route_advice(weather_score,
+                      traffic,
+                      waterlogging):
+
+    advice = []
+
+    if traffic["status"] == "Heavy":
+
+        advice.append(
+            "Heavy traffic detected. Consider delaying travel."
+        )
+
+    elif traffic["status"] == "Moderate":
+
+        advice.append(
+            "Moderate traffic expected."
+        )
+
+    else:
+
+        advice.append(
+            "Road traffic is smooth."
+        )
+
+    if waterlogging["status"] == "High":
+
+        advice.append(
+            "Avoid low-lying roads due to waterlogging."
+        )
+
+    elif waterlogging["status"] == "Moderate":
+
+        advice.append(
+            "Drive carefully in low-lying areas."
+        )
+
+    if weather_score > 80:
+
+        advice.append(
+            "Weather is favourable for travel."
+        )
+
+    else:
+
+        advice.append(
+            "Weather conditions may affect travel."
+        )
+
+    return advice
+
+
+# ==========================================================
+# AI TRAVEL SUMMARY
+# ==========================================================
+
+def ai_summary(city,
+               destination,
+               weather,
+               traffic,
+               waterlogging):
+
+    summary = (
+        f"Travel from {city} to {destination}. "
+        f"Current temperature is "
+        f"{weather['temperature']}°C. "
+        f"Traffic is {traffic['status']}. "
+        f"Waterlogging risk is "
+        f"{waterlogging['status']}."
+    )
+
+    return summary
+
+# ==========================================================
+# AI BEST ROUTE RECOMMENDATION
+# ==========================================================
+
+def generate_route_recommendation(
+    weather_score,
+    traffic,
+    waterlogging,
+    travel_time
+):
+
+    recommendation = {}
+
+    score = weather_score
+
+    # Traffic Impact
+    if traffic["status"] == "Low":
+        score += 10
+
+    elif traffic["status"] == "Moderate":
+        score += 5
+
+    elif traffic["status"] == "Heavy":
+        score -= 10
+
+    elif traffic["status"] == "Severe":
+        score -= 20
+
+    # Waterlogging Impact
+    if waterlogging["status"] == "Low":
+        score += 10
+
+    elif waterlogging["status"] == "Moderate":
+        score -= 5
+
+    elif waterlogging["status"] == "High":
+        score -= 20
+
+    # Keep score between 0 and 100
+    score = max(0, min(score, 100))
+
+    recommendation["score"] = score
+
+    # AI Decision
+    if score >= 90:
+
+        recommendation["title"] = "Excellent Route"
+
+        recommendation["message"] = (
+            "Recommended for travelling. "
+            "Weather is favourable, roads are safe, "
+            "and traffic conditions are good."
+        )
+
+    elif score >= 75:
+
+        recommendation["title"] = "Good Route"
+
+        recommendation["message"] = (
+            "Safe for travelling. "
+            "Minor delays may occur due to moderate traffic."
+        )
+
+    elif score >= 60:
+
+        recommendation["title"] = "Travel Carefully"
+
+        recommendation["message"] = (
+            "Travel is possible, "
+            "but drive carefully because weather or "
+            "road conditions may affect your journey."
+        )
+
+    else:
+
+        recommendation["title"] = "Avoid Travelling"
+
+        recommendation["message"] = (
+            "Heavy traffic or high waterlogging risk detected. "
+            "Delay your trip if possible."
+        )
+
+    recommendation["estimated_time"] = travel_time
+
+    return recommendation
+
+# ==========================================================
+# SAFE ROUTE FINDER
+# ==========================================================
+
+def safest_route(weather_score, traffic, waterlogging):
+
+    if waterlogging["status"] == "High":
+
+        return {
+            "route": "Alternative Route Recommended",
+            "color": "danger",
+            "icon": "🔴",
+            "reason": "High waterlogging detected on the current route."
+        }
+
+    elif traffic["status"] == "Heavy":
+
+        return {
+            "route": "Alternative Route Recommended",
+            "color": "warning",
+            "icon": "🟠",
+            "reason": "Heavy traffic may cause long delays."
+        }
+
+    elif weather_score >= 80:
+
+        return {
+            "route": "Current Route is Safe",
+            "color": "success",
+            "icon": "🟢",
+            "reason": "Weather, traffic and road conditions are favourable."
+        }
+
+    else:
+
+        return {
+            "route": "Proceed Carefully",
+            "color": "info",
+            "icon": "🔵",
+            "reason": "Drive carefully due to moderate conditions."
+        }
+
+# ==========================================================
+# BEST ROUTE DECISION
+# ==========================================================
+
+def choose_best_route(traffic, waterlogging):
+
+    if waterlogging["status"] == "High":
+
+        return {
+
+            "route_status": "Avoid This Route",
+
+            "route_color": "danger",
+
+            "route_icon": "🚫",
+
+            "reason":
+            "High waterlogging risk detected. Choose another road if possible."
+
+        }
+
+    elif traffic["status"] == "Severe":
+
+        return {
+
+            "route_status": "Alternative Route Recommended",
+
+            "route_color": "warning",
+
+            "route_icon": "⚠️",
+
+            "reason":
+            "Traffic congestion is very high."
+
+        }
+
+    elif traffic["status"] == "Heavy":
+
+        return {
+
+            "route_status": "Travel Carefully",
+
+            "route_color": "warning",
+
+            "route_icon": "🚗",
+
+            "reason":
+            "Heavy traffic expected."
+
+        }
+
+    else:
+
+        return {
+
+            "route_status": "Best Route",
+
+            "route_color": "success",
+
+            "route_icon": "✅",
+
+            "reason":
+            "Weather, traffic and road conditions are suitable."
+
+        }
+        
+# ==========================================================
+# GET CURRENT LOCATION NAME
+# ==========================================================
+
+@app.route("/current-location")
+def current_location():
+
+    lat = request.args.get("lat")
+    lon = request.args.get("lon")
+
+    url = (
+        "https://nominatim.openstreetmap.org/reverse"
+        f"?format=json&lat={lat}&lon={lon}"
+    )
+
+    headers = {
+        "User-Agent": "Weather Positioning System"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    data = response.json()
+
+    address = data.get("address", {})
+
+    city = (
+        address.get("city")
+        or address.get("town")
+        or address.get("village")
+        or address.get("county")
+        or ""
+    )
+
+    return jsonify({
+        "city": city
+    })
+
+# ==========================================================
+# HOME
 # ==========================================================
 
 @app.route("/", methods=["GET", "POST"])
@@ -30,673 +791,606 @@ def home():
 
     global latest_weather
     global latest_air
+    global latest_forecast
+    global latest_route
+    global latest_waterlogging
+    global latest_travel
+    global latest_city
+    global latest_destination
     global latest_elevation
-    global latest_recommendation
     global latest_sunrise
     global latest_sunset
+    global latest_local_time
+    global latest_recommendation
 
     weather = None
     air = None
-    elevation = None
     forecast = []
-    recommendation = None
+    elevation = None
 
-    route_advice = {}
+    route = None
+    traffic = None
+    waterlogging = None
 
-    road_risk = 0
-    travel_score = 0
-    travel_status = ""
-    best_time = ""
-    weather_score = 0
-
-    alerts = []
-
-    flood_risk = {
-        "status": "",
-        "message": ""
-    }
-
-    sunrise = ""
-    sunset = ""
-    rain_chance = ""
+    travel = []
+    summary = ""
 
     city = ""
-    latitude = ""
-    longitude = ""
+    destination = ""
 
     error = None
+    
+    # Initial page load
+    if request.method == "GET":
+
+     return render_template(
+        "index.html",
+
+        weather=None,
+        air=None,
+        forecast=[],
+        elevation=None,
+
+        recommendation=None,
+
+        sunrise="",
+        sunset="",
+
+        traffic=None,
+        waterlogging=None,
+
+        weather_score=0,
+        travel_score=0,
+
+        route_advice=[],
+
+        summary="",
+
+        city="",
+        destination="",
+
+        error=None
+    )
 
     if request.method == "POST":
 
-        city = request.form.get("city", "").strip()
-        latitude = request.form.get("latitude", "").strip()
-        longitude = request.form.get("longitude", "").strip()
+        city = request.form.get("source", "").strip()
+        destination = request.form.get("destination", "").strip()
 
-    try:
+        if city == "":
+            error = "Please enter source."
 
-        if not city and not latitude and not longitude:
-            return render_template("index.html")
-
-        # ==================================================
-        # CITY SEARCH
-        # ==================================================
-
-        if city:
-
-            geo_url = (
-                "https://geocoding-api.open-meteo.com/v1/search"
-                f"?name={city}&count=1"
+            return render_template(
+                "index.html",
+                error=error
             )
 
-            geo_response = requests.get(geo_url, timeout=10)
-            geo_data = geo_response.json()
+        source = geocode_location(city)
 
-            if "results" not in geo_data:
+        if source is None:
+
+            error = "Source not found."
+
+            return render_template(
+                "index.html",
+                error=error
+            )
+
+        source_lat = source["lat"]
+        source_lon = source["lon"]
+
+        destination_data = None
+
+        if destination != "":
+
+            destination_data = geocode_location(destination)
+
+            if destination_data is None:
+
+                error = "Destination not found."
 
                 return render_template(
                     "index.html",
-                    error="City not found."
+                    error=error
+                )
+                
+                
+
+                print("Destination Location:")
+                print(destination_data)
+
+        weather_json = get_weather(
+            source_lat,
+            source_lon
+        )
+        
+# =====================================================
+# LOCAL TIME OF SEARCHED CITY
+# =====================================================
+
+        timezone_name = weather_json.get("timezone", "UTC")
+
+        local_time = datetime.now(
+            ZoneInfo(timezone_name)
+        ).strftime("%I:%M %p")
+
+        latest_local_time = local_time
+
+        air_json = get_air_quality(
+                    source_lat,
+                    source_lon
                 )
 
-            latitude = geo_data["results"][0]["latitude"]
-            longitude = geo_data["results"][0]["longitude"]
-
-        # ==================================================
-        # WEATHER API
-        # ==================================================
-
-        weather_url = (
-            "https://api.open-meteo.com/v1/forecast?"
-            f"latitude={latitude}"
-            f"&longitude={longitude}"
-            "&current="
-            "temperature_2m,"
-            "apparent_temperature,"
-            "relative_humidity_2m,"
-            "wind_speed_10m,"
-            "wind_direction_10m,"
-            "weather_code"
-            "&daily="
-            "temperature_2m_max,"
-            "temperature_2m_min,"
-            "weather_code,"
-            "sunrise,"
-            "sunset,"
-            "precipitation_probability_max"
-            "&forecast_days=7"
-            "&timezone=auto"
+        elevation_json = get_elevation(
+            source_lat,
+            source_lon
         )
+        
+         # ==========================================
+        # CURRENT WEATHER
+        # ==========================================
 
-        weather_response = requests.get(weather_url, timeout=15)
-        weather_data = weather_response.json()
+        icon, status = weather_icon(
+            weather_json["current"]["weather_code"]
+        )
 
         weather = {
 
             "temperature":
-            weather_data["current"]["temperature_2m"],
+                weather_json["current"]["temperature_2m"],
 
             "feels_like":
-            weather_data["current"]["apparent_temperature"],
+                weather_json["current"]["apparent_temperature"],
 
             "humidity":
-            weather_data["current"]["relative_humidity_2m"],
+                weather_json["current"]["relative_humidity_2m"],
 
             "wind":
-            weather_data["current"]["wind_speed_10m"],
+                weather_json["current"]["wind_speed_10m"],
 
             "wind_direction":
-            weather_data["current"]["wind_direction_10m"]
+                weather_json["current"]["wind_direction_10m"],
+
+            "icon": icon,
+
+            "status": status
 
         }
 
-        temperature = weather["temperature"]
-        weather_code = weather_data["current"]["weather_code"]
-
-        # ==================================================
-        # WEATHER ICON
-        # ==================================================
-
-        if weather_code == 0:
-            weather["icon"] = "☀️"
-            weather["status"] = "Clear Sky"
-
-        elif weather_code in [1, 2]:
-            weather["icon"] = "🌤"
-            weather["status"] = "Partly Cloudy"
-
-        elif weather_code == 3:
-            weather["icon"] = "☁️"
-            weather["status"] = "Cloudy"
-
-        elif weather_code in [45, 48]:
-            weather["icon"] = "🌫"
-            weather["status"] = "Fog"
-
-        elif weather_code in [51, 53, 55]:
-            weather["icon"] = "🌦"
-            weather["status"] = "Drizzle"
-
-        elif weather_code in [61, 63, 65]:
-            weather["icon"] = "🌧"
-            weather["status"] = "Rain"
-
-        elif weather_code in [71, 73, 75]:
-            weather["icon"] = "❄️"
-            weather["status"] = "Snow"
-
-        elif weather_code == 95:
-            weather["icon"] = "⛈"
-            weather["status"] = "Thunderstorm"
-
-        else:
-            weather["icon"] = "🌍"
-            weather["status"] = "Unknown"
-
-        # ==================================================
-        # RECOMMENDATION
-        # ==================================================
-
-        if temperature > 35:
-
-            recommendation = {
-                "title": "🔥 Very Hot",
-                "message": "Drink plenty of water, wear light clothes and avoid direct sunlight during afternoon."
-            }
-
-        elif temperature > 25:
-
-            recommendation = {
-                "title": "😊 Pleasant Weather",
-                "message": "Perfect weather for outdoor activities. Stay hydrated and enjoy your day."
-            }
-
-        elif temperature > 15:
-
-            recommendation = {
-                "title": "☁️ Cool Weather",
-                "message": "A pleasant day. Carry a light jacket if you are going out in the evening."
-            }
-
-        else:
-
-            recommendation = {
-                "title": "🥶 Cold Weather",
-                "message": "Wear warm clothes and avoid staying outside for long periods."
-            }
-
-        # ==================================================
-        # FORECAST
-        # ==================================================
-
-        dates = weather_data["daily"]["time"]
-        max_temp = weather_data["daily"]["temperature_2m_max"]
-        min_temp = weather_data["daily"]["temperature_2m_min"]
-        forecast_codes = weather_data["daily"]["weather_code"]
-
-        forecast = []
-
-        for i in range(len(dates)):
-
-            code = forecast_codes[i]
-
-            if code == 0:
-                icon = "☀️"
-            elif code in [1,2]:
-                icon = "🌤"
-            elif code == 3:
-                icon = "☁️"
-            elif code in [45,48]:
-                icon = "🌫"
-            elif code in [51,53,55]:
-                icon = "🌦"
-            elif code in [61,63,65]:
-                icon = "🌧"
-            elif code in [71,73,75]:
-                icon = "❄️"
-            elif code == 95:
-                icon = "⛈"
-            else:
-                icon = "🌍"
-
-            day_name = datetime.strptime(
-                dates[i],
-                "%Y-%m-%d"
-            ).strftime("%A")
-
-            forecast.append({
-                "date": day_name,
-                "max": max_temp[i],
-                "min": min_temp[i],
-                "icon": icon
-})
-
-        sunrise = datetime.strptime(
-            weather_data["daily"]["sunrise"][0],
-            "%Y-%m-%dT%H:%M"
-        ).strftime("%I:%M %p")
-
-        sunset = datetime.strptime(
-            weather_data["daily"]["sunset"][0],
-            "%Y-%m-%dT%H:%M"
-        ).strftime("%I:%M %p")
-
-        rain_chance = weather_data["daily"]["precipitation_probability_max"][0]
-        
-        
-        # ==================================================
-        # AIR QUALITY API
-        # ==================================================
-
-        air_url = (
-            "https://air-quality-api.open-meteo.com/v1/air-quality?"
-            f"latitude={latitude}"
-            f"&longitude={longitude}"
-            "&current=pm10,pm2_5,carbon_monoxide"
-        )
-
-        air_response = requests.get(
-            air_url,
-            timeout=15
-        )
-
-        air_data = air_response.json()
+        # ==========================================
+        # AIR QUALITY
+        # ==========================================
 
         air = {
 
             "pm10":
-            air_data["current"]["pm10"],
+                air_json["current"]["pm10"],
 
             "pm25":
-            air_data["current"]["pm2_5"],
+                air_json["current"]["pm2_5"],
 
             "co":
-            air_data["current"]["carbon_monoxide"]
+                air_json["current"]["carbon_monoxide"]
 
         }
-        
-        
-                # ==================================================
-        # ELEVATION API
-        # ==================================================
 
-        elevation_url = (
-            "https://api.open-meteo.com/v1/elevation?"
-            f"latitude={latitude}"
-            f"&longitude={longitude}"
+        air.update(
+            aqi_status(air["pm25"])
         )
 
-        elevation_response = requests.get(
-            elevation_url,
-            timeout=15
+        # ==========================================
+        # ELEVATION
+        # ==========================================
+
+        elevation = elevation_json["elevation"][0]
+
+        # ==========================================
+        # SUNRISE / SUNSET
+        # ==========================================
+
+        sunrise = datetime.strptime(
+
+            weather_json["daily"]["sunrise"][0],
+
+            "%Y-%m-%dT%H:%M"
+
+        ).strftime("%I:%M %p")
+
+        sunset = datetime.strptime(
+
+            weather_json["daily"]["sunset"][0],
+
+            "%Y-%m-%dT%H:%M"
+
+        ).strftime("%I:%M %p")
+
+        # ==========================================
+        # RAIN CHANCE
+        # ==========================================
+
+        rain = weather_json["daily"][
+            "precipitation_probability_max"
+        ][0]
+
+        # ==========================================
+        # FORECAST
+        # ==========================================
+
+        forecast = build_forecast(
+            weather_json
         )
 
-        elevation_data = elevation_response.json()
+        # ==========================================
+        # SMART WEATHER RECOMMENDATION
+        # ==========================================
 
-        elevation = elevation_data["elevation"][0]
+        if weather["temperature"] >= 35:
 
-        # ==================================================
-        # AQI STATUS
-        # ==================================================
+            recommendation = {
 
-        pm25 = air["pm25"]
+                "title": "🔥 Very Hot",
 
-        if pm25 <= 12:
+                "message":
+                "Avoid travelling in the afternoon. Carry water."
 
-            air["status"] = "🟢 Good"
-            air["color"] = "success"
+            }
 
-        elif pm25 <= 35:
+        elif rain >= 70:
 
-            air["status"] = "🟡 Moderate"
-            air["color"] = "warning"
+            recommendation = {
 
-        elif pm25 <= 55:
+                "title": "🌧 Heavy Rain",
 
-            air["status"] = "🟠 Poor"
-            air["color"] = "danger"
+                "message":
+                "Carry an umbrella and expect delays."
+
+            }
+
+        elif weather["temperature"] <= 15:
+
+            recommendation = {
+
+                "title": "🥶 Cold Weather",
+
+                "message":
+                "Wear warm clothes before travelling."
+
+            }
 
         else:
 
-            air["status"] = "🔴 Very Poor"
-            air["color"] = "danger"
-                # ==================================================
-        # SMART ROUTE ADVISOR
-        # ==================================================
+            recommendation = {
 
-        route_advice = {}
+                "title": "😊 Pleasant Weather",
 
-        if rain_chance < 20:
+                "message":
+                "Perfect weather for travelling."
 
-            route_advice["status"] = "🟢 Safe to Travel"
-            route_advice["message"] = (
-                "No significant rainfall expected. Roads should remain clear."
+            }
+            
+            
+            
+            # ==========================================
+        # WEATHER SCORE
+        # ==========================================
+
+        weather_score = calculate_weather_score(
+            weather,
+            rain
+        )
+
+        # ==========================================
+        # WATERLOGGING PREDICTION
+        # ==========================================
+
+        waterlogging = predict_waterlogging(
+            rain,
+            weather["humidity"],
+            elevation
+        )
+
+        # ==========================================
+        # ROUTE CALCULATION
+        # ==========================================
+
+        if destination_data is not None:
+
+            route = calculate_traffic(
+                source_lat,
+                source_lon,
+                destination_data["lat"],
+                destination_data["lon"]
             )
+            
+            print(route)
 
-        elif rain_chance < 50:
+            traffic = {
 
-            route_advice["status"] = "🟡 Carry Umbrella"
-            route_advice["message"] = (
-                "Light rain expected. Drive carefully."
-            )
+                "status": route["status"],
 
-        elif rain_chance < 80:
+                "distance": route["distance"],
 
-            route_advice["status"] = "🟠 Possible Waterlogging"
-            route_advice["message"] = (
-                "Heavy rain may cause waterlogging on low-lying roads. Prefer major roads."
+                "duration": route["duration"],
+
+                "speed": route["speed"],
+
+                "congestion": route["congestion"],
+
+                "coordinates": route["coordinates"]
+
+            }
+
+        else:
+
+            traffic = {
+
+                "status": "Not Selected",
+
+                "distance": 0,
+
+                "duration": 0,
+
+                "speed": 0,
+
+                "congestion": 0,
+
+                "coordinates": []
+
+            }
+
+        # ==========================================
+        # AI ROUTE ADVICE
+        # ==========================================
+
+        route_advice = best_route_advice(
+
+            weather_score,
+
+            traffic,
+
+            waterlogging
+
+        )
+        
+        best_route = choose_best_route(
+
+                traffic,
+
+                waterlogging
+
+        )
+
+        # ==========================================
+        # AI TRAVEL SUMMARY
+        # ==========================================
+
+        if destination != "":
+
+            summary = ai_summary(
+
+                city,
+
+                destination,
+
+                weather,
+
+                traffic,
+
+                waterlogging
+
             )
 
         else:
 
-            route_advice["status"] = "🔴 Avoid Non-Essential Travel"
-            route_advice["message"] = (
-                "Very heavy rainfall expected. Travel only if necessary."
-            )
-            
-         # ==================================================
-        # ROAD RISK INDEX
-        # ==================================================
+            summary = "Destination not selected."
 
-        road_risk = int((rain_chance * 0.7) + (weather["wind"] * 0.8))
-
-        if road_risk > 100:
-            road_risk = 100
-            
-        # ==================================================
-        # TRAVEL SAFETY SCORE
-        # ==================================================
+        # ==========================================
+        # TRAVEL SCORE
+        # ==========================================
 
         travel_score = 10
 
-        # Rain Penalty
-        if rain_chance > 80:
+        if weather_score < 80:
+            travel_score -= 2
+
+        if traffic["congestion"] > 60:
+            travel_score -= 2
+
+        if waterlogging["status"] == "Moderate":
+            travel_score -= 2
+
+        if waterlogging["status"] == "High":
             travel_score -= 4
-        elif rain_chance > 50:
-            travel_score -= 3
-        elif rain_chance > 20:
-            travel_score -= 2
 
-        # Wind Penalty
-        if weather["wind"] > 40:
-            travel_score -= 2
-        elif weather["wind"] > 20:
-            travel_score -= 1
-
-        # Air Quality Penalty
-        if air["pm25"] > 55:
-            travel_score -= 2
-        elif air["pm25"] > 35:
-            travel_score -= 1
-
-        # Keep score between 1 and 10
-        travel_score = max(1, min(10, travel_score))
+        travel_score = max(1, travel_score)
         
-        # ==================================================
-        # BEST TIME TO TRAVEL
-        # ==================================================
+        # ==========================================
+# AI ROUTE RECOMMENDATION
+# ==========================================
 
-        if rain_chance > 80:
+        route_recommendation = generate_route_recommendation(
 
-            best_time = "After the rain stops (Evening recommended)"
+            weather_score,
 
-        elif temperature > 35:
+            traffic,
 
-            best_time = "Early Morning (6 AM - 9 AM)"
+            waterlogging,
 
-        elif weather["wind"] > 35:
+            traffic["duration"]
 
-            best_time = "Travel after wind speed decreases"
-
-        else:
-
-            best_time = "Anytime Today"
-            
-            
-        # ==================================================
-# FLOOD RISK PREDICTION
-# ==================================================
-
-        flood_risk = {}
-
-        risk_score = 0
-
-        # Rain contributes most
-        risk_score += rain_chance * 0.6
-
-        # Low elevation increases risk
-        if elevation < 20:
-            risk_score += 25
-        elif elevation < 50:
-            risk_score += 15
-        else:
-            risk_score += 5
-
-        # High humidity slightly increases risk
-        risk_score += weather["humidity"] * 0.2
-
-        if risk_score < 40:
-
-            flood_risk["status"] = "🟢 Low"
-
-            flood_risk["message"] = (
-                "Very low possibility of waterlogging."
-            )
-
-        elif risk_score < 70:
-
-            flood_risk["status"] = "🟡 Moderate"
-
-            flood_risk["message"] = (
-                "Some roads may collect water after rain."
-            )
-
-        else:
-
-            flood_risk["status"] = "🔴 High"
-
-            flood_risk["message"] = (
-                "Avoid low-lying roads. Waterlogging is possible."
-            )
-            
-            
-            
-                    # ==================================================
-        # WEATHER ALERTS
-        # ==================================================
-
-        alerts = []
-
-        if temperature > 35:
-            alerts.append("🔥 Heat Alert")
-
-        if rain_chance > 70:
-            alerts.append("🌧 Heavy Rain Alert")
-
-        if weather["wind"] > 30:
-            alerts.append("💨 Strong Wind Alert")
-
-        if air["pm25"] > 55:
-            alerts.append("😷 Poor Air Quality")
-
-        if flood_risk["status"] == "🔴 High":
-            alerts.append("🌊 Waterlogging Possible")
-
-        if len(alerts) == 0:
-            alerts.append("✅ No Weather Alerts")
-            
-            
-                    # ==================================================
-        # WEATHER SCORE
-        # ==================================================
-
-        weather_score = 100
-
-        weather_score -= rain_chance * 0.3
-
-        if air["pm25"] > 35:
-            weather_score -= 20
-
-        if temperature > 35:
-            weather_score -= 10
-
-        if flood_risk["status"] == "🔴 High":
-            weather_score -= 20
-
-        weather_score = max(0, int(weather_score))    
-    
-    
-            # ==================================================
-        # TRAVEL SAFETY METER
-        # ==================================================
-
-        travel_score = weather_score
-
-        if flood_risk["status"] == "🔴 High":
-            travel_score -= 20
-
-        travel_score = max(0, min(100, travel_score))
-
-        if travel_score >= 80:
-
-            travel_status = "🟢 Safe"
-
-        elif travel_score >= 60:
-
-            travel_status = "🟡 Moderate"
-
-        else:
-
-            travel_status = "🔴 Unsafe"  
-            
-            
-            route_coordinates = [
-    [float(latitude), float(longitude)]
-]          
+        )
         
+        safe_route = safest_route(
 
-        # ==================================================
-        # SAVE DATA FOR PDF
-        # ==================================================
+            weather_score,
 
-        traffic = calculate_traffic(
-        weather,
-        air,
-        rain_chance,
-        elevation
-    )
+            traffic,
+
+            waterlogging
+
+        )
+        
+        # ==========================================
+        # AI BEST ROUTE RECOMMENDATION
+        # ==========================================
+
+        ai_recommendation = generate_route_recommendation(
+
+            weather_score,
+
+            traffic,
+
+            waterlogging,
+
+            traffic["duration"]
+
+        )
+
+        # ==========================================
+        # SAVE GLOBAL VARIABLES
+        # ==========================================
 
         latest_weather = weather
+
         latest_air = air
+
+        latest_forecast = forecast
+
+        latest_route = traffic
+
+        latest_waterlogging = waterlogging
+
+        latest_city = city
+
+        latest_destination = destination
+
         latest_elevation = elevation
-        latest_recommendation = recommendation
+
         latest_sunrise = sunrise
+
         latest_sunset = sunset
+        
+        latest_recommendation = ai_recommendation
 
-    except Exception as e:
+        latest_travel = {
 
-        traceback.print_exc()
-        error = str(e)
+            "travel_score": travel_score,
 
-    # ======================================================
-    # RETURN HTML
-    # ======================================================
+            "weather_score": weather_score,
 
-    return render_template(
+            "route_advice": route_advice,
+
+            "summary": summary
+
+        }
+        
+    
+        return render_template(
 
         "index.html",
 
         weather=weather,
-        
+
         air=air,
-        
-        elevation=elevation,
-        
+
         forecast=forecast,
-        
+
+        elevation=elevation,
+
         recommendation=recommendation,
+        
+        route_recommendation=route_recommendation,
 
         sunrise=sunrise,
-        
+
         sunset=sunset,
-        
-        rain_chance=rain_chance,
-        
+
+        traffic=traffic,
+
+        waterlogging=waterlogging,
+
+        weather_score=weather_score,
+
+        travel_score=travel_score,
+
         route_advice=route_advice,
         
-        road_risk=road_risk,
-        
-        travel_score=travel_score,
-        
-        travel_status=travel_status,
-        
-        best_time=best_time,
-        
-        flood_risk=flood_risk,
-        
-        alerts=alerts,
-        
-        weather_score=weather_score,
-        
-        destination=destination,
-        
-        route_coordinates=route_coordinates,
+        best_route=best_route,
 
-        latitude=latitude,
-        
-        longitude=longitude,
-        
-        traffic=traffic,
-        
+        summary=summary,
+
         city=city,
 
+        destination=destination,
+        
+        local_time=latest_local_time,
+        
+        ai_recommendation=ai_recommendation,
+        
+        safe_route=safe_route,
+
         error=error
-   
-     )
-    
-    # ==========================================================
-# PDF DOWNLOAD
+
+    )
+
+
+# ==========================================================
+# DOWNLOAD PDF
 # ==========================================================
 
 @app.route("/download")
 def download():
 
-    global latest_weather
-    global latest_air
-    global latest_elevation
-    global latest_recommendation
-    global latest_sunrise
-    global latest_sunset
-    
-    if latest_weather is None:
+    if latest_weather == {}:
 
-        return "Please search weather first."
+        return "Please search a location first."
 
     create_pdf(
 
         latest_weather,
-        latest_air,
-        latest_elevation,
-        latest_recommendation,
-        latest_sunrise,
-        latest_sunset
 
+        latest_air,
+
+        latest_elevation,
+
+        {
+            "title": "AI Travel Recommendation",
+            "message": latest_travel["summary"]
+        },
+
+        latest_sunrise,
+
+        latest_sunset,
+
+        latest_route,
+
+        latest_waterlogging,
+
+        latest_travel["travel_score"],
+
+        latest_travel["weather_score"],
+
+        latest_travel["route_advice"],
+
+        latest_city,
+
+        latest_destination
 
     )
 
     return send_file(
 
         "weather_report.pdf",
+
         as_attachment=True
 
     )
 
 
 # ==========================================================
-# RUN FLASK APP
+# RUN APPLICATION
 # ==========================================================
 
 if __name__ == "__main__":
 
-    app.run(
-        debug=True
-    )
+    app.run(debug=True)                   
